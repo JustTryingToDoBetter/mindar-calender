@@ -65,14 +65,35 @@ export async function initMLDetector(video, onMaskiDetected) {
 
     updateDebug(`Loading model from ${DETECTION_CONFIG.modelUrl}...`);
     
-    // Use loadLayersModel for Teachable Machine (Keras format)
-    // Use loadGraphModel for TF.js graph models
-    const loadPromise = tf.loadLayersModel(DETECTION_CONFIG.modelUrl);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Model load timeout (30s)')), 30000)
-    );
+    // Mobile-optimized loading with longer timeout and retry
+    const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+    const timeout = isMobile ? 120000 : 60000; // 2 min mobile, 1 min desktop
     
-    model = await Promise.race([loadPromise, timeoutPromise]);
+    let loadAttempt = 0;
+    const maxAttempts = 3;
+    
+    while (loadAttempt < maxAttempts && !model) {
+      loadAttempt++;
+      updateDebug(`Loading model (attempt ${loadAttempt}/${maxAttempts})...`);
+      
+      try {
+        // Use loadLayersModel for Teachable Machine (Keras format)
+        const loadPromise = tf.loadLayersModel(DETECTION_CONFIG.modelUrl);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Model load timeout (${timeout/1000}s)`)), timeout)
+        );
+        
+        model = await Promise.race([loadPromise, timeoutPromise]);
+        break; // Success!
+        
+      } catch (err) {
+        if (loadAttempt >= maxAttempts) {
+          throw err; // Give up after max attempts
+        }
+        updateDebug(`⚠️ Attempt ${loadAttempt} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+      }
+    }
     
     console.log("✅ Maski ML detector loaded");
     updateDebug("✅ Model loaded successfully");
@@ -86,8 +107,16 @@ export async function initMLDetector(video, onMaskiDetected) {
     
   } catch (err) {
     const msg = `Could not load model: ${err.message}`;
-    console.warn(msg, err);
+    console.error(msg, err);
     updateDebug(`❌ ${msg}`);
+    
+    // Show user-friendly error message
+    if (err.message.includes('timeout')) {
+      updateDebug(`⚠️ Slow network - check WiFi/4G connection`);
+    } else if (err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
+      updateDebug(`⚠️ Cannot reach model files - check server is running`);
+    }
+    
     lastError = err.message;
     // Gracefully degrade - app still works without ML detection
     return { start: () => {}, stop: () => {}, getStatus };
@@ -199,9 +228,8 @@ async function detectLoop(onMaskiDetected) {
 }
 
 async function detectMaski(video) {
-  // Use smaller input size on mobile to improve performance
-  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-  const inputSize = DETECTION_CONFIG.mobileOptimized && isMobile ? 160 : 224;
+  // Model expects 224x224 input (from Teachable Machine training)
+  const inputSize = 224;
 
   let tensor = null;
   try {

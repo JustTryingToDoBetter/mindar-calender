@@ -64,6 +64,8 @@ async function startCamera() {
     // Initialize ML detector
     try {
       console.log("Initializing ML detector...");
+      setStatus("Loading ML model...");
+      
       mlDetector = await initMLDetector(video, handleMaskiDetected);
       
       const status = mlDetector?.getStatus?.();
@@ -71,15 +73,20 @@ async function startCamera() {
       
       if (status?.modelLoaded) {
         mlDetector?.start?.();
-        console.log(" ML detection started");
+        console.log("✅ ML detection started");
         setStatus("Point camera at Maski...");
+      } else if (status?.lastError) {
+        console.log("⚠️ ML model load failed:", status.lastError);
+        setStatus(`ML error: ${status.lastError.substring(0, 40)}...`);
+        showError("ML detection unavailable - check console for details");
       } else {
-        console.log(" ML model not loaded - detection disabled");
+        console.log("⚠️ ML model not loaded");
         setStatus("ML model not loaded (see console)");
       }
     } catch (err) {
-      console.log("ML detector initialization skipped:", err.message);
+      console.error("ML detector initialization failed:", err);
       setStatus("ML detection unavailable");
+      showError(`ML error: ${err.message}`);
     }
 
   } catch (err) {
