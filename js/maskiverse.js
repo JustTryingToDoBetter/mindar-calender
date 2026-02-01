@@ -26,7 +26,6 @@ export function createMaskiverseController() {
     const spot = {
       timestamp: detectionData.timestamp || Date.now(),
       confidence: detectionData.confidence || 1,
-      location: detectionData.location || "Unknown", // Add geolocation later
     };
 
     spotsCollected.push(spot);
@@ -36,6 +35,9 @@ export function createMaskiverseController() {
     updateSpotsDisplay();
 
     signupCard.classList.remove("hidden");
+    
+    // Scroll card into view
+    setTimeout(() => signupCard.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
   }
 
   function hide() {
@@ -46,49 +48,36 @@ export function createMaskiverseController() {
   function updateSpotsDisplay() {
     if (!spotsList) return;
 
+    const count = spotsCollected.length;
+    const isFirst = count === 1;
+    
     spotsList.innerHTML = `
       <div class="spots-count">
-        🎯 You've spotted Maski <strong>${spotsCollected.length}</strong> ${
-      spotsCollected.length === 1 ? "time" : "times"
-    }!
-      </div>
-      <div class="spots-recent">
-        ${spotsCollected
-          .slice(-3)
-          .reverse()
-          .map(
-            (s) => `
-          <div class="spot-item">
-            <span class="spot-icon">📍</span>
-            <span class="spot-time">${formatSpotTime(s.timestamp)}</span>
-          </div>
-        `
-          )
-          .join("")}
+        ${isFirst 
+          ? '<strong>First spot!</strong> Welcome to the Maskiverse hunt 🎉' 
+          : `You've found Maski <strong>${count} times</strong>! Keep going! 🚀`
+        }
       </div>
     `;
   }
 
   function handleJoinMaskiverse() {
-    // Build signup URL with spot count as context
     const spotCount = spotsCollected.length;
     const message = encodeURIComponent(
-      `Hi Maski! 👋 I spotted you ${spotCount} ${
-        spotCount === 1 ? "time" : "times"
-      } and want to join the Maskiverse!`
+      `Hi! 👋 I found Maski ${spotCount}x and want to join the Maskiverse!`
     );
 
     const signupUrl = `https://wa.me/27720910388?text=${message}`;
 
-    // Open in new tab (gesture-safe)
     try {
       const w = window.open(signupUrl, "_blank");
-      if (!w) {
-        window.location.href = signupUrl;
-      }
+      if (!w) window.location.href = signupUrl;
     } catch {
       window.location.href = signupUrl;
     }
+    
+    // Hide card after joining
+    hide();
   }
 
   function formatSpotTime(timestamp) {
