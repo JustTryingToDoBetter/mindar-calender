@@ -1,0 +1,583 @@
+/* Maski OS Design System (mobile-first WebAR overlay) */
+
+:root {
+  --maski-bg: #05060c;
+  --maski-ink: #0b0b12;
+  --maski-text: rgba(255, 255, 255, 0.92);
+  --maski-text-dim: rgba(255, 255, 255, 0.72);
+  --maski-border: rgba(255, 255, 255, 0.12);
+  --maski-glass: rgba(18, 18, 26, 0.62);
+  --maski-glass-strong: rgba(14, 14, 20, 0.78);
+  --maski-accent: #7cfc9a;
+  --maski-accent-2: #5dd6ff;
+  --maski-accent-3: #b06bff;
+  --maski-danger: #ff4d6d;
+
+  --radius-xl: 18px;
+  --radius-lg: 16px;
+  --radius-md: 14px;
+
+  /* JS will set these to lock the viewport once AR starts */
+  --app-width: 100vw;
+  --app-height: 100dvh;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: var(--maski-text);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+button,
+textarea,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+/* UI overlay scaffolding */
+#hud {
+  position: fixed;
+  inset: 0;
+  width: var(--app-width);
+  height: var(--app-height);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Ensure camera/canvas is full-screen behind Maski OS UI */
+a-scene {
+  position: fixed !important;
+  inset: 0 !important;
+  width: var(--app-width) !important;
+  height: var(--app-height) !important;
+  z-index: 0;
+}
+
+a-scene canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  width: var(--app-width) !important;
+  height: var(--app-height) !important;
+  will-change: transform;
+}
+
+/* Fallback hide for A-Frame VR button */
+.a-enter-vr-button,
+.a-enter-vr,
+.a-enter-ar-button,
+.a-enter-ar {
+  display: none !important;
+}
+
+.hidden { display: none !important; }
+
+.topbar {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.pill {
+  pointer-events: none;
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  background-color: var(--maski-glass);
+  backdrop-filter: blur(16px) saturate(1.15);
+  border: 1px solid var(--maski-border);
+  box-shadow: var(--shadow-chip);
+  font-size: 14px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--maski-accent);
+  box-shadow: 0 0 16px rgba(124, 252, 154, 0.55);
+  animation: dotPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.14); filter: brightness(1.15); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* Start screen */
+.start {
+  pointer-events: auto;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background:
+    radial-gradient(900px 620px at 30% 18%, rgba(124,252,154,0.16), rgba(124,252,154,0) 60%),
+    radial-gradient(900px 620px at 70% 22%, rgba(93,214,255,0.16), rgba(93,214,255,0) 60%),
+    linear-gradient(180deg, rgba(5,6,12,0.78), rgba(5,6,12,0.62));
+  backdrop-filter: blur(10px);
+}
+
+.start.hidden { display: none !important; }
+
+.start-card {
+  width: min(520px, 100%);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  background: rgba(16, 16, 24, 0.78);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: var(--shadow-soft);
+}
+
+.start-brand {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  background: linear-gradient(90deg, var(--maski-accent), var(--maski-accent-2), var(--maski-accent-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.start-sub {
+  margin-top: 6px;
+  color: var(--maski-text-dim);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.start-hint {
+  margin-top: 10px;
+  color: rgba(255,255,255,0.75);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.banner {
+  pointer-events: auto;
+  position: fixed;
+  left: 50%;
+  top: calc(58px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 24px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 77, 109, 0.16);
+  border: 1px solid rgba(255, 77, 109, 0.28);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-chip);
+  color: rgba(255,255,255,0.92);
+}
+
+/* Command dock */
+.dock {
+  pointer-events: auto;
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%) translateY(14px);
+  opacity: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  width: min(720px, calc(100% - 24px));
+  border-radius: var(--radius-xl);
+  background: var(--maski-glass);
+  backdrop-filter: blur(18px) saturate(1.15);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow-soft);
+  transition: transform 220ms ease, opacity 220ms ease;
+  z-index: 10000;
+}
+
+.dock {
+  background:
+    radial-gradient(480px 220px at 18% 0%, rgba(124,252,154,0.18), rgba(124,252,154,0) 62%),
+    radial-gradient(520px 260px at 82% 10%, rgba(93,214,255,0.16), rgba(93,214,255,0) 60%),
+    rgba(18, 18, 26, 0.62);
+}
+
+/* Gradient border/glow without looking like default A-Frame */
+.dock::before,
+.card::before,
+.panel::before,
+.pill::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(120deg, rgba(124,252,154,0.55), rgba(93,214,255,0.38), rgba(176,107,255,0.36));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  mask-composite: exclude;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.dock,
+.card,
+.panel,
+.pill {
+  position: relative;
+}
+
+.dock:not(.is-visible) {
+  pointer-events: none;
+}
+
+.dock.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dock-btn {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  color: var(--maski-text);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset;
+  transition: transform 120ms ease, background 160ms ease, border-color 160ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-btn:hover {
+  border-color: rgba(255,255,255,0.18);
+}
+
+.dock-btn:active { transform: scale(0.98); }
+
+.dock-wa {
+  border-color: rgba(124,252,154,0.35);
+  box-shadow:
+    0 0 0 1px rgba(124,252,154,0.12) inset,
+    0 0 18px rgba(124,252,154,0.12);
+  animation: waPulse 1.15s ease-in-out infinite;
+}
+
+@keyframes waPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* Context cards */
+.context {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.card {
+  pointer-events: auto;
+  width: min(720px, calc(100% - 24px));
+  border-radius: var(--radius-xl);
+  padding: 12px;
+  background: var(--maski-glass-strong);
+  backdrop-filter: blur(18px) saturate(1.15);
+  border: 1px solid var(--maski-border);
+  box-shadow: var(--shadow-card);
+}
+
+.card {
+  background:
+    radial-gradient(520px 260px at 10% 0%, rgba(176,107,255,0.14), rgba(176,107,255,0) 62%),
+    radial-gradient(520px 260px at 90% 0%, rgba(93,214,255,0.12), rgba(93,214,255,0) 60%),
+    rgba(14, 14, 20, 0.78);
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: var(--maski-text-dim);
+  margin-top: 2px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.day {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: var(--maski-text);
+  border-radius: 12px;
+  padding: 10px 0;
+  font-weight: 750;
+  cursor: pointer;
+  min-height: 42px;
+  transition: transform 120ms ease, border-color 160ms ease;
+}
+
+.day:active { transform: scale(0.98); }
+
+.day.is-empty {
+  opacity: 0.22;
+  cursor: default;
+}
+
+.day.is-empty:active { transform: none; }
+
+.emergency-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Panel (notes) */
+.panel {
+  pointer-events: auto;
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 24px));
+  border-radius: var(--radius-xl);
+  padding: 14px;
+  background: var(--maski-glass-strong);
+  border: 1px solid var(--maski-border);
+  backdrop-filter: blur(18px) saturate(1.15);
+  color: var(--maski-text);
+  box-shadow: var(--shadow-soft);
+  z-index: 10001;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-title { font-size: 16px; font-weight: 800; }
+.panel-sub { font-size: 12px; color: var(--maski-text-dim); }
+
+textarea {
+  width: 100%;
+  min-height: 110px;
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  resize: vertical;
+  color: var(--maski-text);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  outline: none;
+}
+
+.panel-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(90deg, rgba(124, 252, 154, 0.22), rgba(93, 214, 255, 0.18));
+  color: var(--maski-text);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.btn.primary {
+  background: linear-gradient(90deg, rgba(124,252,154,0.32), rgba(93,214,255,0.26));
+  border-color: rgba(124,252,154,0.24);
+  box-shadow: 0 0 0 1px rgba(124,252,154,0.10) inset, 0 14px 44px rgba(0,0,0,0.35);
+}
+
+.btn:active { transform: scale(0.98); }
+
+.btn.ghost {
+  background: rgba(255,255,255,0.06);
+}
+
+.btn.danger {
+  background: rgba(255, 77, 109, 0.18);
+  border-color: rgba(255, 77, 109, 0.28);
+}
+
+@media (max-width: 420px) {
+  .dock { gap: 8px; padding: 8px; }
+  .dock-btn { padding: 10px 10px; font-size: 12px; }
+  .emergency-actions { grid-template-columns: 1fr; }
+}
+
+/* --- Ensure camera video is visible behind WebGL --- */
+video {
+  position: fixed !important;
+  inset: 0 !important;
+  width: var(--app-width) !important;
+  height: var(--app-height) !important;
+  object-fit: cover !important;
+  z-index: -1 !important;
+}
+
+a-scene canvas {
+  background: transparent !important;
+}
+
+/* WhatsApp signup modal */
+.modal {
+  pointer-events: auto;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  z-index: 10002;
+}
+
+.modal-card {
+  width: min(640px, calc(100% - 24px));
+  border-radius: var(--radius-xl);
+  padding: 14px;
+  background: var(--maski-glass-strong);
+  border: 1px solid var(--maski-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.modal-body {
+  margin-top: 6px;
+  color: var(--maski-text-dim);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.modal-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Maskiverse: Wild Maski spotted card */
+.maskiverse-card {
+  background: linear-gradient(135deg, rgba(124, 252, 154, 0.08), rgba(93, 214, 255, 0.08));
+  border: 1px solid var(--maski-accent);
+}
+
+.maskiverse-card .card-title {
+  color: var(--maski-accent);
+}
+
+.spots-collected {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.spots-count {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--maski-text);
+}
+
+.spots-count strong {
+  color: var(--maski-accent);
+  font-weight: 900;
+}
+
+.spots-recent {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spot-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--maski-text-dim);
+}
+
+.spot-icon {
+  font-size: 14px;
+}
+
+.card-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--maski-border);
+  font-size: 12px;
+  color: var(--maski-text-dim);
+  line-height: 1.4;
+}
