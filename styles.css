@@ -525,59 +525,58 @@ a-scene canvas {
   flex-wrap: wrap;
 }
 
-/* Maskiverse: Wild Maski spotted card */
+/* Maskiverse: Spot Maski Success Card */
 .maskiverse-card {
-  background: linear-gradient(135deg, rgba(124, 252, 154, 0.08), rgba(93, 214, 255, 0.08));
-  border: 1px solid var(--maski-accent);
+  background: linear-gradient(135deg, rgba(124, 252, 154, 0.12), rgba(93, 214, 255, 0.12));
+  border: 2px solid var(--maski-accent);
+  box-shadow: 0 0 30px rgba(124, 252, 154, 0.3);
+  animation: cardPulse 2s ease-in-out infinite;
+}
+
+@keyframes cardPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(124, 252, 154, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(124, 252, 154, 0.5); }
 }
 
 .maskiverse-card .card-title {
   color: var(--maski-accent);
+  font-size: 20px;
+}
+
+.maskiverse-hero {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.maski-emoji {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: bounceIn 0.6s ease-out;
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .spots-collected {
-  margin-top: 12px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.25);
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(124, 252, 154, 0.2);
 }
 
 .spots-count {
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--maski-text);
+  text-align: center;
 }
 
 .spots-count strong {
   color: var(--maski-accent);
   font-weight: 900;
+  font-size: 18px;
 }
 
-.spots-recent {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.spot-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--maski-text-dim);
-}
-
-.spot-icon {
-  font-size: 14px;
-}
-
-.card-footer {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--maski-border);
-  font-size: 12px;
-  color: var(--maski-text-dim);
-  line-height: 1.4;
-}
