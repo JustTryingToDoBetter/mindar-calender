@@ -241,6 +241,21 @@ function handleMaskiDetection(detection) {
   }
 }
 
+// Allow testing Maskiverse UI without ML model (open console and run: testMaski())
+window.testMaski = function() {
+  console.log('🧪 Testing Maskiverse UI...');
+  handleMaskiDetection({
+    confidence: 0.95,
+    timestamp: Date.now(),
+    demo: true
+  });
+};
+
+// Also listen for custom event from ml-detector test function
+window.addEventListener('maskiDetected', (e) => {
+  handleMaskiDetection(e.detail);
+});
+
 function getController(system) {
   // Be defensive across MindAR versions/builds.
   return (
