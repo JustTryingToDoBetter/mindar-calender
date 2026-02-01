@@ -6,12 +6,18 @@
 let model = null;
 let isDetecting = false;
 let videoStream = null;
+let debugElement = null;
+let detectionAttempts = 0;
+let lastError = null;
 
 export const DETECTION_CONFIG = {
-  modelUrl: "./models/maski-detector/model.json", // You'll train and export this
-  confidenceThreshold: 0.7, // 70% confidence to trigger
-  detectionInterval: 500, // Check every 500ms (balance performance/battery)
-  cooldownMs: 5000, // Don't spam detections - 5s between triggers
+  modelUrl: "./models/maski-detector/model.json",
+  confidenceThreshold: 0.7,
+  detectionInterval: 500,
+  cooldownMs: 5000,
+  debugMode: true, // Set to false in production
+  mobileOptimized: true, // Use smaller input size on mobile
+  demoMode: false, // Set to true to test UI without a real model
 };
 
 let lastDetectionTime = 0;
@@ -24,26 +30,75 @@ let lastDetectionTime = 0;
 export async function initMLDetector(video, onMaskiDetected) {
   videoStream = video;
 
-  // Check if TensorFlow.js is available
-  if (typeof tf === "undefined") {
-    console.warn("TensorFlow.js not loaded - ML detection disabled");
-    return { start: () => {}, stop: () => {} };
+  // Create debug overlay if enabled
+  if (DETECTION_CONFIG.debugMode) {
+    createDebugOverlay();
+    updateDebug("Initializing ML detector...");
   }
 
+  // Check if TensorFlow.js is available
+  if (typeof tf === "undefined") {
+    const msg = "TensorFlow.js not loaded - ML detection disabled";
+    console.warn(msg);
+    updateDebug(`❌ ${msg}`);
+    lastError = msg;
+    return { start: () => {}, stop: () => {}, getStatus };
+  }
+
+  updateDebug(`✅ TensorFlow.js loaded (v${tf.version.tfjs || 'unknown'})`);
+
   try {
-    // Load the custom trained model
-    // For MVP: you can start with MobileNet transfer learning
-    model = await tf.loadGraphModel(DETECTION_CONFIG.modelUrl);
+    updateDebug(`Loading model from ${DETECTION_CONFIG.modelUrl}...`);
+    
+    // Try to load the model with timeout
+    const loadPromise = tf.loadGraphModel(DETECTION_CONFIG.modelUrl);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Model load timeout (30s)')), 30000)
+    );
+    
+    model = await Promise.race([loadPromise, timeoutPromise]);
+    
     console.log("✅ Maski ML detector loaded");
+    updateDebug("✅ Model loaded successfully");
+    
+    // Warmup: run a dummy prediction to initialize GPU/WASM backend
+    updateDebug("Warming up model...");
+    const dummyInput = tf.zeros([1, 224, 224, 3]);
+    await model.predict(dummyInput).data();
+    dummyInput.dispose();
+    updateDebug("✅ Model ready");
+    
   } catch (err) {
-    console.warn("Could not load Maski detector model:", err.message);
+    const msg = `Could not load model: ${err.message}`;
+    console.warn(msg, err);
+    updateDebug(`❌ ${msg}`);
+    lastError = err.message;
     // Gracefully degrade - app still works without ML detection
-    return { start: () => {}, stop: () => {} };
+    return { start: () => {}, stop: () => {}, getStatus };
   }
 
   return {
     start: startDetection.bind(null, onMaskiDetected),
     stop: stopDetection,
+    getStatus,
+  };
+}
+
+/**
+ * Demo mode: test the Maskiverse UI without a trained model
+ * Call this from console: window.testMaskiDetection()
+ */
+if (typeof window !== 'undefined') {
+  window.testMaskiDetection = function() {
+    console.log('🧪 Triggering test Maski detection...');
+    const event = new CustomEvent('maskiDetected', {
+      detail: {
+        confidence: 0.95,
+        timestamp: Date.now(),
+        demo: true
+      }
+    });
+    window.dispatchEvent(event);
   };
 }
 
@@ -62,13 +117,27 @@ async function detectLoop(onMaskiDetected) {
   if (!isDetecting || !videoStream || videoStream.readyState !== 4) {
     // Video not ready, try again soon
     if (isDetecting) {
+      updateDebug(`Video not ready (readyState: ${videoStream?.readyState || 'null'})`);
       setTimeout(() => detectLoop(onMaskiDetected), 1000);
     }
     return;
   }
 
+  detectionAttempts++;
+  const startTime = performance.now();
+
   try {
+    // Check if video has actual dimensions (sometimes readyState=4 but no frames yet)
+    if (!videoStream.videoWidth || !videoStream.videoHeight) {
+      updateDebug(`Video has no dimensions yet`);
+      if (isDetecting) {
+        setTimeout(() => detectLoop(onMaskiDetected), 1000);
+      }
+      return;
+    }
+
     const predictions = await detectMaski(videoStream);
+    const inferenceTime = Math.round(performance.now() - startTime);
 
     // Check if we found Maski with high confidence
     const maskiFound = predictions.find(
@@ -80,15 +149,28 @@ async function detectLoop(onMaskiDetected) {
       const now = Date.now();
       if (now - lastDetectionTime > DETECTION_CONFIG.cooldownMs) {
         lastDetectionTime = now;
+        updateDebug(`🎯 DETECTED! Confidence: ${Math.round(maskiFound.score * 100)}%`);
         onMaskiDetected({
           confidence: maskiFound.score,
-          bbox: maskiFound.bbox, // [x, y, width, height]
+          bbox: maskiFound.bbox,
           timestamp: now,
         });
+      }
+    } else {
+      // Show periodic status updates
+      if (detectionAttempts % 10 === 0) {
+        const topScore = predictions[0]?.score || 0;
+        updateDebug(
+          `Checking... (attempt ${detectionAttempts}, ` +
+          `top score: ${Math.round(topScore * 100)}%, ` +
+          `inference: ${inferenceTime}ms)`
+        );
       }
     }
   } catch (err) {
     console.error("Detection error:", err);
+    lastError = err.message;
+    updateDebug(`❌ Error: ${err.message}`);
   }
 
   // Continue loop
@@ -101,45 +183,100 @@ async function detectLoop(onMaskiDetected) {
 }
 
 async function detectMaski(video) {
-  // Preprocess video frame
-  const tensor = tf.browser
-    .fromPixels(video)
-    .resizeBilinear([224, 224]) // Standard input size
-    .toFloat()
-    .div(255.0) // Normalize
-    .expandDims(0);
+  // Use smaller input size on mobile to improve performance
+  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const inputSize = DETECTION_CONFIG.mobileOptimized && isMobile ? 160 : 224;
 
-  // Run inference
-  const predictions = await model.predict(tensor).data();
+  let tensor = null;
+  try {
+    // Preprocess video frame
+    tensor = tf.browser
+      .fromPixels(video)
+      .resizeBilinear([inputSize, inputSize])
+      .toFloat()
+      .div(255.0)
+      .expandDims(0);
 
-  // Clean up tensor
-  tensor.dispose();
+    // Run inference
+    const predictionTensor = model.predict(tensor);
+    const predictions = await predictionTensor.data();
+    
+    // Clean up
+    predictionTensor.dispose();
+    tensor.dispose();
 
-  // Parse predictions (format depends on your model architecture)
-  // This is a placeholder - adjust based on your trained model output
-  return parsePredictions(predictions);
+    return parsePredictions(predictions);
+  } catch (err) {
+    // Ensure cleanup on error
+    if (tensor) tensor.dispose();
+    throw err;
+  }
 }
 
 function parsePredictions(rawOutput) {
-  // TODO: Replace with your actual model's output format
-  // Example for a simple classifier:
-  // [class_0_prob, class_1_prob, ...] where class 0 might be "maski"
-
-  // For object detection models (YOLO, SSD, etc.), you'd parse bounding boxes
-  // This is a simplified example:
-
-  const maskiScore = rawOutput[0]; // Assuming index 0 is "maski" class
-  if (maskiScore > 0.5) {
-    return [
-      {
-        class: "maski",
-        score: maskiScore,
-        bbox: [0.3, 0.3, 0.4, 0.4], // Placeholder - real models give actual boxes
-      },
-    ];
+  // Parse based on model output format
+  // Common formats:
+  // 1. Simple classifier: [not_maski_prob, maski_prob]
+  // 2. Object detector: [boxes, scores, classes]
+  
+  // For Teachable Machine / simple classifier:
+  const maskiScore = rawOutput[0]; // First output is usually the target class
+  
+  // Return all predictions for debugging
+  const results = [];
+  
+  if (maskiScore > 0.3) { // Lower threshold for debugging
+    results.push({
+      class: "maski",
+      score: maskiScore,
+      bbox: [0.3, 0.3, 0.4, 0.4],
+    });
   }
 
-  return [];
+  return results;
+}
+
+function createDebugOverlay() {
+  if (debugElement) return;
+  
+  debugElement = document.createElement('div');
+  debugElement.id = 'ml-debug';
+  debugElement.style.cssText = `
+    position: fixed;
+    top: 60px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #0f0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 11px;
+    max-width: 300px;
+    z-index: 10005;
+    line-height: 1.4;
+    pointer-events: none;
+    word-wrap: break-word;
+  `;
+  document.body.appendChild(debugElement);
+}
+
+function updateDebug(message) {
+  if (!DETECTION_CONFIG.debugMode || !debugElement) return;
+  
+  const timestamp = new Date().toLocaleTimeString();
+  debugElement.textContent = `[${timestamp}] ${message}`;
+  console.log(`[ML Debug] ${message}`);
+}
+
+function getStatus() {
+  return {
+    isDetecting,
+    modelLoaded: !!model,
+    videoReady: videoStream?.readyState === 4,
+    detectionAttempts,
+    lastError,
+    tfVersion: typeof tf !== 'undefined' ? tf.version.tfjs : null,
+  };
 }
 
 /**
