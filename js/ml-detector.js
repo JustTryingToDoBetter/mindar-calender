@@ -14,9 +14,9 @@ let lastError = null;
 export const DETECTION_CONFIG = {
   modelUrl: "./models/maski-detector/model.json",
   metadataUrl: "./models/maski-detector/metadata.json",
-  confidenceThreshold: 0.7,
-  detectionInterval: 500,
-  cooldownMs: 5000,
+  confidenceThreshold: 0.5, // Lower = more sensitive (was 0.7)
+  detectionInterval: 300, // Check more frequently (was 500ms)
+  cooldownMs: 3000, // Shorter cooldown (was 5000ms)
   debugMode: true, // Set to false in production
   mobileOptimized: true, // Use smaller input size on mobile
   demoMode: false, // Set to true to test UI without a real model
@@ -254,8 +254,8 @@ function parsePredictions(rawOutput) {
   if (maskiIndex !== -1 && rawOutput[maskiIndex] !== undefined) {
     const maskiScore = rawOutput[maskiIndex];
     
-    // Only return if above minimum threshold (prevent false positives)
-    if (maskiScore > 0.3) {
+    // Lower minimum threshold for better detection sensitivity
+    if (maskiScore > 0.2) {
       results.push({
         class: "maski",
         score: maskiScore,
