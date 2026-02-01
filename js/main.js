@@ -152,10 +152,33 @@ async function startAR() {
     startScreenEl.classList.add("hidden");
 
     // Initialize ML-based "Wild Maski" detection (runs in parallel with MindAR tracking)
-    const video = document.querySelector("video");
-    if (video) {
-      mlDetector = await initMLDetector(video, handleMaskiDetection);
-      mlDetector?.start?.();
+    // This is OPTIONAL - app works fine without it until you train the model
+    try {
+      const video = document.querySelector("video");
+      if (video) {
+        console.log("Initializing ML detector with video:", {
+          readyState: video.readyState,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+        mlDetector = await initMLDetector(video, handleMaskiDetection);
+        
+        // Log detector status
+        const status = mlDetector?.getStatus?.();
+        console.log("ML Detector status:", status);
+        
+        if (status?.modelLoaded) {
+          mlDetector?.start?.();
+          console.log("✅ ML detection loop started");
+        } else {
+          console.log("⚠️ ML model not loaded - detection disabled (this is OK)");
+        }
+      } else {
+        console.warn("No video element found - ML detection disabled");
+      }
+    } catch (err) {
+      console.log("ML detector initialization skipped:", err.message);
+      console.log("👉 App works fine without ML detection. Train model later.");
     }
   } catch (err) {
     showError(`Could not start camera: ${err?.message || err}`);
