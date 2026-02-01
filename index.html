@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MindAR Calendar</title>
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- A-Frame + MindAR (CDN) -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    
+    <!-- TensorFlow.js for ML-based Maski detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  </head>
+
+  <body>
+    <!-- Maski OS UI overlay (HTML only; styling in CSS; logic in JS) -->
+    <div id="hud" aria-label="Maski OS">
+      <!-- Start / permissions gate (required on many mobile browsers) -->
+      <div id="startScreen" class="start">
+        <div class="start-card" role="dialog" aria-modal="true" aria-label="Start Maski OS">
+          <div class="start-brand">Maski OS</div>
+          <div class="start-sub">Planner scanned → Page comes alive → Maski universe opens</div>
+          <button id="startAR" class="btn primary" type="button">Start Camera</button>
+          <div id="startHint" class="start-hint"></div>
+        </div>
+      </div>
+
+      <div id="errorBanner" class="banner hidden" role="alert"></div>
+
+      <!-- Top status chip -->
+      <div class="topbar">
+        <div class="pill" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="status">Point camera at a page…</span>
+        </div>
+      </div>
+
+      <!-- Context cards (shown only for specific pages) -->
+      <section id="contextCards" class="context" aria-label="Context">
+        <div id="pageCard" class="card hidden" aria-label="Page">
+          <div class="card-head">
+            <div>
+              <div id="pageTitle" class="card-title">Page</div>
+              <div class="card-sub">Notes and quick actions</div>
+            </div>
+            <button id="pageCollapse" class="btn ghost" type="button">Hide</button>
+          </div>
+          <div class="page-actions">
+            <button id="openPageNotes" class="btn" type="button">Open Notes</button>
+            <button id="quickHolidays" class="btn ghost hidden" type="button">Holidays</button>
+            <button id="quickTerms" class="btn ghost hidden" type="button">School Terms</button>
+          </div>
+        </div>
+
+        <div id="monthCard" class="card hidden" aria-label="Month">
+          <div class="card-head">
+            <div>
+              <div id="monthTitle" class="card-title">Month</div>
+              <div class="card-sub">Tap a date to save notes</div>
+            </div>
+            <button id="monthCollapse" class="btn ghost" type="button">Hide</button>
+          </div>
+          <div id="monthGrid" class="month-grid" role="grid" aria-label="Month grid"></div>
+        </div>
+
+        <div id="emergencyCard" class="card hidden" aria-label="Emergency">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Emergency</div>
+              <div class="card-sub">Quick actions</div>
+            </div>
+            <button id="emergencyCollapse" class="btn ghost" type="button">Hide</button>
+          </div>
+          <div class="emergency-actions">
+            <a class="btn danger" href="tel:112" rel="noopener">Call 112</a>
+            <a class="btn" href="tel:10111" rel="noopener">Police 10111</a>
+            <a class="btn" href="tel:10177" rel="noopener">Ambulance 10177</a>
+            <a class="btn" href="https://wa.me/27720910388?text=Hi%2C%20I%27d%20like%20to%20join%20Maski%20updates." target="_blank" rel="noopener noreferrer">WhatsApp Maski</a>
+            <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=police%20station%20near%20me" target="_blank" rel="noopener noreferrer">Map: Police</a>
+            <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=hospital%20near%20me" target="_blank" rel="noopener noreferrer">Map: Hospital</a>
+          </div>
+        </div>
+
+        <div id="productCard" class="card hidden" aria-label="Product discovery">
+          <div class="card-head">
+            <div>
+              <div class="card-title">You spotted Maski 👀</div>
+              <div class="card-sub">This is part of our brand awareness campaign.</div>
+            </div>
+            <button id="productCollapse" class="btn ghost" type="button">Hide</button>
+          </div>
+          <div class="page-actions">
+            <button class="btn" id="productJoinWa" type="button">Join WhatsApp</button>
+            <button class="btn ghost" id="productLearnMore" type="button">Learn more</button>
+          </div>
+        </div>
+
+        <!-- Maskiverse: Wild Maski Spotted card (ML detection flow) -->
+        <div id="maskiverseCard" class="card hidden maskiverse-card" aria-label="Maskiverse Signup">
+          <div class="card-head">
+            <div>
+              <div class="card-title">🎉 Wild Maski Spotted!</div>
+              <div class="card-sub">You found Maski in the wild. Join the nationwide hunt!</div>
+            </div>
+            <button class="card-close btn ghost" type="button">✕</button>
+          </div>
+          <div class="spots-collected">
+            <!-- Dynamically updated by JS -->
+          </div>
+          <div class="page-actions">
+            <button class="btn primary join-maskiverse-btn" type="button">Join Maskiverse on WhatsApp</button>
+          </div>
+          <div class="card-footer">
+            Keep spotting Maski around your city to unlock exclusive rewards!
+          </div>
+        </div>
+      </section>
+
+      <!-- Persistent command dock (visible only when tracking) -->
+      <nav id="cta" class="dock" aria-label="Maski Command Dock">
+        <button class="dock-btn" data-go="playground" type="button">Playground</button>
+        <button class="dock-btn" data-go="mml" type="button">MML</button>
+        <button class="dock-btn" data-go="maski" type="button">Maski</button>
+        <button class="dock-btn" data-go="yt" type="button">YouTube</button>
+        <button class="dock-btn dock-wa" data-go="wa" type="button">WhatsApp</button>
+      </nav>
+
+      <!-- WhatsApp signup modal (lead capture flow) -->
+      <div id="waModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="WhatsApp signup">
+        <div class="modal-card">
+          <div class="modal-title">You’re signing up for Maski on WhatsApp</div>
+          <div class="modal-body">Stay connected for updates, drops, and exclusive experiences.</div>
+          <div class="modal-actions">
+            <button id="waCancel" class="btn ghost" type="button">Not now</button>
+            <button id="waContinue" class="btn primary" type="button">Open WhatsApp</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes panel -->
+      <div id="panel" class="panel hidden" role="dialog" aria-modal="true">
+        <div class="panel-head">
+          <div>
+            <div id="panelTitle" class="panel-title">Notes</div>
+            <div id="panelSubtitle" class="panel-sub">Saved on this device</div>
+          </div>
+          <button id="closePanel" class="btn ghost" type="button">Close</button>
+        </div>
+
+        <textarea id="note" placeholder="Type notes…"></textarea>
+
+        <div class="panel-actions">
+          <button id="saveNote" class="btn" type="button">Save</button>
+          <button id="clearNote" class="btn ghost" type="button">Clear</button>
+          <button id="needHelp" class="btn ghost" type="button">Need Help?</button>
+          <button id="viewHolidays" class="btn ghost" type="button">Holidays</button>
+          <button id="viewTerms" class="btn ghost" type="button">School&nbsp;Terms</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AR Scene -->
+    <a-scene
+      mindar-image="imageTargetSrc: ./public/calender.mind; autoStart: false; uiScanning: true; uiLoading: true;"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      renderer="antialias: true; alpha: true; colorManagement: true;"
+      background="transparent: true"
+    >
+
+      <a-assets></a-assets>
+
+      <!-- Camera + click cursor -->
+      <a-camera position="0 0 0" look-controls="enabled: false">
+        <a-entity
+          cursor="fuse: false; rayOrigin: entity;"
+          raycaster="objects: .clickable"
+        ></a-entity>
+      </a-camera>
+
+      <!-- We will generate ALL targets in app.js -->
+      <a-entity id="targetsRoot"></a-entity>
+    </a-scene>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
