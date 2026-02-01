@@ -6,6 +6,8 @@ export function createMaskiverseController() {
   const signupCard = document.getElementById("maskiverseCard");
   const closeBtn = signupCard?.querySelector(".card-close");
   const joinBtn = signupCard?.querySelector(".join-maskiverse-btn");
+  const initialActions = signupCard?.querySelector(".maskiverse-initial");
+  const linksGrid = signupCard?.querySelector(".maskiverse-links");
   const spotsList = signupCard?.querySelector(".spots-collected");
 
   // Track user's collected spots (stored locally)
@@ -17,9 +19,9 @@ export function createMaskiverseController() {
 
   if (joinBtn) {
     joinBtn.addEventListener("click", () => {
-      const message = "Hi! I found Maski and want to join the Maskiverse! 🎉";
-      const whatsappUrl = `https://wa.me/27720910388?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, "_blank");
+      // Hide initial button, show link grid
+      if (initialActions) initialActions.classList.add("hidden");
+      if (linksGrid) linksGrid.classList.remove("hidden");
     });
   }
 
