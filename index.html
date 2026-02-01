@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>MindAR Calendar</title>
+    <title>Spot Maski</title>
     <link rel="stylesheet" href="styles.css" />
 
     <!-- A-Frame + MindAR (CDN) -->
@@ -19,9 +19,9 @@
     <div id="hud" aria-label="Maski OS">
       <!-- Start / permissions gate (required on many mobile browsers) -->
       <div id="startScreen" class="start">
-        <div class="start-card" role="dialog" aria-modal="true" aria-label="Start Maski OS">
-          <div class="start-brand">Maski OS</div>
-          <div class="start-sub">Planner scanned → Page comes alive → Maski universe opens</div>
+        <div class="start-card" role="dialog" aria-modal="true" aria-label="Start Maski Finder">
+          <div class="start-brand">Spot Maski</div>
+          <div class="start-sub">Find Maski in the wild → Unlock the Maskiverse</div>
           <button id="startAR" class="btn primary" type="button">Start Camera</button>
           <div id="startHint" class="start-hint"></div>
         </div>
@@ -159,28 +159,16 @@
       </div>
     </div>
 
-    <!-- AR Scene -->
-    <a-scene
-      mindar-image="imageTargetSrc: ./public/calender.mind; autoStart: false; uiScanning: true; uiLoading: true;"
-      vr-mode-ui="enabled: false"
-      device-orientation-permission-ui="enabled: false"
-      renderer="antialias: true; alpha: true; colorManagement: true;"
-      background="transparent: true"
-    >
-
-      <a-assets></a-assets>
-
-      <!-- Camera + click cursor -->
-      <a-camera position="0 0 0" look-controls="enabled: false">
-        <a-entity
-          cursor="fuse: false; rayOrigin: entity;"
-          raycaster="objects: .clickable"
-        ></a-entity>
-      </a-camera>
-
-      <!-- We will generate ALL targets in app.js -->
-      <a-entity id="targetsRoot"></a-entity>
-    </a-scene>
+    <!-- Camera video element (for ML detection) -->
+    <video id="cameraVideo" autoplay playsinline muted style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    "></video>
 
     <script type="module" src="js/main.js"></script>
   </body>
