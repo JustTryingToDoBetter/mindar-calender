@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ML Debug - Maski Detector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      color: #fff;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #7cfc9a;
+    }
+    .section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section h2 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #5dd6ff;
+    }
+    .status {
+      display: grid;
+      gap: 8px;
+    }
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      background: #0a0a0a;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .status-label {
+      color: #999;
+    }
+    .status-value {
+      font-weight: 600;
+      color: #fff;
+    }
+    .status-value.good { color: #7cfc9a; }
+    .status-value.bad { color: #ff4d6d; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #7cfc9a;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    .log {
+      background: #000;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 11px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+    .log-item {
+      padding: 4px 0;
+      border-bottom: 1px solid #222;
+    }
+    .log-item:last-child {
+      border-bottom: none;
+    }
+    .log-time {
+      color: #666;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 ML Detector Debug Panel</h1>
+
+  <div class="section">
+    <h2>Environment Check</h2>
+    <div class="status" id="envStatus"></div>
+  </div>
+
+  <div class="section">
+    <h2>TensorFlow.js Status</h2>
+    <div class="status" id="tfStatus"></div>
+  </div>
+
+  <div class="section">
+    <h2>Model Loading Test</h2>
+    <div class="status" id="modelStatus"></div>
+    <button onclick="testModelLoad()">Test Model Load</button>
+  </div>
+
+  <div class="section">
+    <h2>Console Log</h2>
+    <div class="log" id="logOutput"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script>
+    const logs = [];
+    
+    function log(message, type = 'info') {
+      const time = new Date().toLocaleTimeString();
+      logs.push({ time, message, type });
+      updateLogDisplay();
+      console.log(`[${time}] ${message}`);
+    }
+
+    function updateLogDisplay() {
+      const logEl = document.getElementById('logOutput');
+      logEl.innerHTML = logs.slice(-20).reverse().map(l => 
+        `<div class="log-item"><span class="log-time">${l.time}</span>${l.message}</div>`
+      ).join('');
+    }
+
+    function updateStatus(containerId, items) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = items.map(({ label, value, good }) => `
+        <div class="status-item">
+          <span class="status-label">${label}</span>
+          <span class="status-value ${good === true ? 'good' : good === false ? 'bad' : ''}">${value}</span>
+        </div>
+      `).join('');
+    }
+
+    // Environment checks
+    function checkEnvironment() {
+      log('Checking environment...');
+      
+      const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+      const isSecure = window.isSecureContext;
+      const hasGPU = !!document.createElement('canvas').getContext('webgl2');
+      
+      updateStatus('envStatus', [
+        { label: 'Device', value: isMobile ? 'Mobile' : 'Desktop', good: null },
+        { label: 'User Agent', value: navigator.userAgent.substring(0, 50) + '...', good: null },
+        { label: 'HTTPS', value: isSecure ? 'Yes' : 'No', good: isSecure },
+        { label: 'WebGL2', value: hasGPU ? 'Available' : 'Not available', good: hasGPU },
+        { label: 'Connection', value: navigator.onLine ? 'Online' : 'Offline', good: navigator.onLine },
+      ]);
+      
+      log(`Mobile: ${isMobile}, Secure: ${isSecure}, GPU: ${hasGPU}`);
+    }
+
+    // TensorFlow.js checks
+    async function checkTensorFlow() {
+      log('Checking TensorFlow.js...');
+      
+      if (typeof tf === 'undefined') {
+        updateStatus('tfStatus', [
+          { label: 'Status', value: 'Not Loaded', good: false },
+        ]);
+        log('❌ TensorFlow.js not loaded!', 'error');
+        return;
+      }
+
+      try {
+        const backend = tf.getBackend();
+        const version = tf.version.tfjs;
+        
+        // Test basic operation
+        const testTensor = tf.tensor([1, 2, 3]);
+        const sum = testTensor.sum().dataSync()[0];
+        testTensor.dispose();
+        
+        const numTensors = tf.memory().numTensors;
+        
+        updateStatus('tfStatus', [
+          { label: 'Version', value: version, good: true },
+          { label: 'Backend', value: backend, good: true },
+          { label: 'Test Calc (1+2+3)', value: sum === 6 ? 'Pass ✓' : 'Fail ✗', good: sum === 6 },
+          { label: 'Active Tensors', value: numTensors, good: null },
+        ]);
+        
+        log(`✅ TensorFlow.js ${version} loaded with ${backend} backend`);
+      } catch (err) {
+        log(`❌ TensorFlow.js error: ${err.message}`, 'error');
+      }
+    }
+
+    // Model loading test
+    async function testModelLoad() {
+      log('Testing model load...');
+      
+      const modelUrl = './models/maski-detector/model.json';
+      
+      updateStatus('modelStatus', [
+        { label: 'Status', value: 'Loading...', good: null },
+      ]);
+      
+      try {
+        // Check if file exists
+        log(`Fetching ${modelUrl}...`);
+        const res = await fetch(modelUrl);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const modelJson = await res.json();
+        log(`Model JSON loaded. Format: ${modelJson.format || 'unknown'}`);
+        
+        // Try to load the actual model
+        log('Loading TensorFlow model...');
+        const model = await tf.loadGraphModel(modelUrl);
+        log('✅ Model loaded successfully!');
+        
+        // Test inference
+        log('Running test inference...');
+        const dummyInput = tf.zeros([1, 224, 224, 3]);
+        const start = performance.now();
+        const output = await model.predict(dummyInput).data();
+        const inferenceTime = Math.round(performance.now() - start);
+        dummyInput.dispose();
+        
+        log(`✅ Test inference complete in ${inferenceTime}ms`);
+        log(`Output shape: [${output.length}]`);
+        
+        updateStatus('modelStatus', [
+          { label: 'Model File', value: 'Found ✓', good: true },
+          { label: 'Model Format', value: modelJson.format || 'graph-model', good: true },
+          { label: 'Load Status', value: 'Success ✓', good: true },
+          { label: 'Test Inference', value: `${inferenceTime}ms`, good: inferenceTime < 1000 },
+          { label: 'Output Size', value: output.length, good: null },
+        ]);
+        
+      } catch (err) {
+        log(`❌ Model load failed: ${err.message}`, 'error');
+        
+        updateStatus('modelStatus', [
+          { label: 'Status', value: 'Failed ✗', good: false },
+          { label: 'Error', value: err.message, good: false },
+        ]);
+      }
+    }
+
+    // Initialize
+    checkEnvironment();
+    checkTensorFlow();
+    
+    // Auto-test model if it exists
+    setTimeout(testModelLoad, 1000);
+  </script>
+</body>
+</html>
