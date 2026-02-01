@@ -228,22 +228,23 @@ function handleLost() {
 }
 
 function handleMaskiDetection(detection) {
-  // Triggered by ML when Maski character is spotted in the wild (not via MindAR marker)
+  // Maski found! Show the celebration card
   const confidence = Math.round(detection.confidence * 100);
-  ui.setStatus(`🎯 Wild Maski spotted! (${confidence}% match)`);
+  ui.setStatus(`🎯 You found Maski! (${confidence}% match)`);
   
-  // Show Maskiverse signup flow
+  // Show Maskiverse signup
   maskiverse.show(detection);
   
-  // Optional: vibrate on detection (if supported)
+  // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate([50, 100, 50]);
   }
 }
 
-// Allow testing Maskiverse UI without ML model (open console and run: testMaski())
+// Test Maskiverse UI without ML model
+// Just open console and type: testMaski()
 window.testMaski = function() {
-  console.log('🧪 Testing Maskiverse UI...');
+  console.log('🧪 Testing Maskiverse...');
   handleMaskiDetection({
     confidence: 0.95,
     timestamp: Date.now(),
@@ -251,7 +252,7 @@ window.testMaski = function() {
   });
 };
 
-// Also listen for custom event from ml-detector test function
+// Also listen for custom event
 window.addEventListener('maskiDetected', (e) => {
   handleMaskiDetection(e.detail);
 });
