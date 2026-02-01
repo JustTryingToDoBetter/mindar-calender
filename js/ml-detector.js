@@ -4,6 +4,7 @@
  */
 
 let model = null;
+let modelMetadata = null;
 let isDetecting = false;
 let videoStream = null;
 let debugElement = null;
@@ -12,6 +13,7 @@ let lastError = null;
 
 export const DETECTION_CONFIG = {
   modelUrl: "./models/maski-detector/model.json",
+  metadataUrl: "./models/maski-detector/metadata.json",
   confidenceThreshold: 0.7,
   detectionInterval: 500,
   cooldownMs: 5000,
@@ -48,10 +50,24 @@ export async function initMLDetector(video, onMaskiDetected) {
   updateDebug(`✅ TensorFlow.js loaded (v${tf.version.tfjs || 'unknown'})`);
 
   try {
+    // Load metadata first to get proper labels
+    updateDebug(`Loading metadata from ${DETECTION_CONFIG.metadataUrl}...`);
+    try {
+      const metaRes = await fetch(DETECTION_CONFIG.metadataUrl);
+      if (metaRes.ok) {
+        modelMetadata = await metaRes.json();
+        updateDebug(`✅ Metadata loaded (${modelMetadata.labels?.length || 0} labels)`);
+      }
+    } catch (metaErr) {
+      console.warn("Could not load metadata:", metaErr.message);
+      updateDebug(`⚠️ No metadata, using defaults`);
+    }
+
     updateDebug(`Loading model from ${DETECTION_CONFIG.modelUrl}...`);
     
-    // Try to load the model with timeout
-    const loadPromise = tf.loadGraphModel(DETECTION_CONFIG.modelUrl);
+    // Use loadLayersModel for Teachable Machine (Keras format)
+    // Use loadGraphModel for TF.js graph models
+    const loadPromise = tf.loadLayersModel(DETECTION_CONFIG.modelUrl);
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Model load timeout (30s)')), 30000)
     );
@@ -215,22 +231,37 @@ async function detectMaski(video) {
 
 function parsePredictions(rawOutput) {
   // Parse based on model output format
-  // Common formats:
-  // 1. Simple classifier: [not_maski_prob, maski_prob]
-  // 2. Object detector: [boxes, scores, classes]
+  // Teachable Machine outputs: [prob_class0, prob_class1, ...]
   
-  // For Teachable Machine / simple classifier:
-  const maskiScore = rawOutput[0]; // First output is usually the target class
-  
-  // Return all predictions for debugging
   const results = [];
+  const labels = modelMetadata?.labels || [];
   
-  if (maskiScore > 0.3) { // Lower threshold for debugging
-    results.push({
-      class: "maski",
-      score: maskiScore,
-      bbox: [0.3, 0.3, 0.4, 0.4],
-    });
+  // Find which index is "maski" (or similar)
+  let maskiIndex = -1;
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i].toLowerCase();
+    if (label.includes('maski') || label === 'class 1') {
+      maskiIndex = i;
+      break;
+    }
+  }
+  
+  // If no label found, assume first class is "maski" (for backwards compat)
+  if (maskiIndex === -1 && rawOutput.length > 0) {
+    maskiIndex = 0;
+  }
+  
+  if (maskiIndex !== -1 && rawOutput[maskiIndex] !== undefined) {
+    const maskiScore = rawOutput[maskiIndex];
+    
+    // Only return if above minimum threshold (prevent false positives)
+    if (maskiScore > 0.3) {
+      results.push({
+        class: "maski",
+        score: maskiScore,
+        bbox: [0.3, 0.3, 0.4, 0.4],
+      });
+    }
   }
 
   return results;
