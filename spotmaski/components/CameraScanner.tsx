@@ -39,6 +39,8 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
   const [debugInfo, setDebugInfo] = useState<{
     class0: number;
     class1: number;
+    notMaskiConfidence: number;
+    margin: number;
     maskiClassIndex: number;
     purplePercent: number;
     hasPurple: boolean;
@@ -47,6 +49,11 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
   // Inference FPS throttle
   const inferenceIntervalMs = 1000 / parseInt(process.env.NEXT_PUBLIC_INFERENCE_FPS || '8');
   const lastInferenceTime = useRef<number>(0);
+
+  const debugThreshold = parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.85');
+  const minConfidenceGate = parseFloat(process.env.NEXT_PUBLIC_MIN_CONFIDENCE || String(debugThreshold));
+  const minMarginGate = parseFloat(process.env.NEXT_PUBLIC_MIN_MARGIN || '0.15');
+  const minPurpleGate = parseFloat(process.env.NEXT_PUBLIC_MIN_PURPLE_PERCENT || '0.05');
 
   /**
    * Initialize camera and model
@@ -169,6 +176,8 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
       setDebugInfo({
         class0: prediction.class0,
         class1: prediction.class1,
+        notMaskiConfidence: prediction.notMaskiConfidence,
+        margin: prediction.margin,
         maskiClassIndex: parseInt(process.env.NEXT_PUBLIC_MASKI_CLASS_INDEX || '0'),
         purplePercent: colorAnalysis.purplePercentage,
         hasPurple: colorAnalysis.hasPurple,
@@ -179,9 +188,13 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
 
       // Debug mode: bypass stabilizer for immediate feedback
       const debugMode = process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-      const threshold = parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.80');
+      const minConfidence = minConfidenceGate;
+      const minMargin = minMarginGate;
+      const meetsQualityGate =
+        prediction.confidence >= minConfidence &&
+        prediction.margin >= minMargin;
 
-      if (debugMode && prediction.isMaski && !shouldFilter && prediction.confidence >= threshold) {
+      if (debugMode && prediction.isMaski && !shouldFilter && meetsQualityGate) {
         // DEBUG MODE: Immediate detection without stabilizer
         console.log(JSON.stringify({
           event: 'debug_detection_triggered',
@@ -208,7 +221,7 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
       }
 
       // Normal mode: Check stabilizer (only if prediction is Maski AND has purple color)
-      if (!debugMode && stabilizerRef.current && prediction.isMaski && !shouldFilter) {
+      if (!debugMode && stabilizerRef.current && prediction.isMaski && !shouldFilter && meetsQualityGate) {
         const result = stabilizerRef.current.push(prediction.confidence);
 
         if (result.triggered) {
@@ -369,7 +382,7 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
                 Class 0: {(debugInfo.class0 * 100).toFixed(1)}%
                 {debugInfo.maskiClassIndex === 0 && ' ← MASKI'}
               </span>
-              {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < 0.6 && (
+              {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < minConfidenceGate && (
                 <span className="text-red-400 text-xs">Too low!</span>
               )}
             </div>
@@ -379,7 +392,7 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
                 Class 1: {(debugInfo.class1 * 100).toFixed(1)}%
                 {debugInfo.maskiClassIndex === 1 && ' ← MASKI'}
               </span>
-              {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < 0.6 && (
+              {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < minConfidenceGate && (
                 <span className="text-red-400 text-xs">Too low!</span>
               )}
             </div>
@@ -391,23 +404,35 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
                   {debugInfo.hasPurple ? ' ✓' : ' ✗'}
                 </span>
                 {!debugInfo.hasPurple && (
-                  <span className="text-red-400 text-xs">Need 5%+</span>
+                  <span className="text-red-400 text-xs">Need {(minPurpleGate * 100).toFixed(0)}%+</span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-600 pt-2">
+              <div className="flex justify-between items-center">
+                <span className={debugInfo.margin >= minMarginGate ? 'text-green-400 font-bold' : 'text-red-400'}>
+                  Margin: {(debugInfo.margin * 100).toFixed(1)}%
+                </span>
+                {debugInfo.margin < minMarginGate && (
+                  <span className="text-red-400 text-xs">Need {(minMarginGate * 100).toFixed(0)}%+</span>
                 )}
               </div>
             </div>
 
             <div className="text-xs text-gray-400 border-t border-gray-600 pt-2">
-              <div>Threshold: {(parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.8') * 100).toFixed(0)}%</div>
+              <div>Threshold: {(debugThreshold * 100).toFixed(0)}%</div>
+              <div>Min confidence: {(minConfidenceGate * 100).toFixed(0)}%</div>
               <div>Class {debugInfo.maskiClassIndex} = Maski</div>
             </div>
 
             {/* Suggestions */}
-            {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < 0.6 && (
+            {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < minConfidenceGate && (
               <div className="bg-red-900 bg-opacity-50 p-2 rounded text-xs mt-2">
                 ⚠️ Try: Set MASKI_CLASS_INDEX=1 in .env.local
               </div>
             )}
-            {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < 0.6 && (
+            {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < minConfidenceGate && (
               <div className="bg-red-900 bg-opacity-50 p-2 rounded text-xs mt-2">
                 ⚠️ Try: Set MASKI_CLASS_INDEX=0 in .env.local
               </div>

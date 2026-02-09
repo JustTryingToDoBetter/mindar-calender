@@ -45,7 +45,20 @@ A camera-based web application that uses TensorFlow.js to detect "Maski" in real
    NEXT_PUBLIC_FORM_URL=https://forms.office.com/YOUR_ACTUAL_FORM_URL
 
    # Detection threshold (0.0 to 1.0) - higher = stricter detection
-   NEXT_PUBLIC_THRESHOLD=0.80
+   NEXT_PUBLIC_THRESHOLD=0.85
+
+   # Minimum per-frame confidence to be considered for detection
+   NEXT_PUBLIC_MIN_CONFIDENCE=0.85
+
+   # Minimum margin between Maski and Not Maski confidence
+   NEXT_PUBLIC_MIN_MARGIN=0.15
+
+   # Stabilizer settings (higher = fewer false positives)
+   NEXT_PUBLIC_STABILIZER_WINDOW=7
+   NEXT_PUBLIC_MIN_MASKI_COUNT=4
+
+   # Minimum purple percentage required (0.0 to 1.0)
+   NEXT_PUBLIC_MIN_PURPLE_PERCENT=0.05
 
    # Model URL path (relative to public directory)
    NEXT_PUBLIC_MODEL_URL=/model/model.json
@@ -152,10 +165,15 @@ spotmaski/
 
 | Variable                     | Default                | Description                                      |
 |------------------------------|------------------------|--------------------------------------------------|
-| `NEXT_PUBLIC_FORM_URL`       | (placeholder)          | Microsoft Form URL for competition registration  |
-| `NEXT_PUBLIC_THRESHOLD`      | `0.80`                 | Detection threshold (0.0-1.0)                    |
-| `NEXT_PUBLIC_MODEL_URL`      | `/model/model.json`    | Path to TensorFlow.js model                      |
-| `NEXT_PUBLIC_INFERENCE_FPS`  | `8`                    | Inference frames per second                      |
+| `NEXT_PUBLIC_FORM_URL`           | (placeholder)          | Microsoft Form URL for competition registration  |
+| `NEXT_PUBLIC_THRESHOLD`          | `0.85`                 | Detection threshold (0.0-1.0)                    |
+| `NEXT_PUBLIC_MIN_CONFIDENCE`     | `0.85`                 | Minimum per-frame confidence gate                |
+| `NEXT_PUBLIC_MIN_MARGIN`         | `0.15`                 | Minimum margin between Maski and Not Maski       |
+| `NEXT_PUBLIC_STABILIZER_WINDOW`  | `7`                    | Stabilizer window size                           |
+| `NEXT_PUBLIC_MIN_MASKI_COUNT`    | `4`                    | Minimum Maski predictions in window              |
+| `NEXT_PUBLIC_MIN_PURPLE_PERCENT` | `0.05`                 | Minimum purple percentage filter                 |
+| `NEXT_PUBLIC_MODEL_URL`          | `/model/model.json`    | Path to TensorFlow.js model                      |
+| `NEXT_PUBLIC_INFERENCE_FPS`      | `8`                    | Inference frames per second                      |
 
 **Note**: All variables must be prefixed with `NEXT_PUBLIC_` to be accessible in the browser.
 
@@ -187,10 +205,11 @@ Edit `.env.local`:
 ```env
 # Increase threshold (requires higher confidence)
 NEXT_PUBLIC_THRESHOLD=0.90
-
-# Or modify stabilizer in components/CameraScanner.tsx:
-# - Increase window size (e.g., 7 instead of 5)
-# - Require more "Maski" predictions (e.g., 3 instead of 2)
+NEXT_PUBLIC_MIN_CONFIDENCE=0.90
+NEXT_PUBLIC_MIN_MARGIN=0.20
+NEXT_PUBLIC_STABILIZER_WINDOW=9
+NEXT_PUBLIC_MIN_MASKI_COUNT=5
+NEXT_PUBLIC_MIN_PURPLE_PERCENT=0.08
 ```
 
 ### Improve Performance on Low-End Devices

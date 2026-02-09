@@ -126,7 +126,7 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
 export function shouldFilterByColor(purplePercentage: number): boolean {
   // Require at least 10% purple in the frame
   const minPurpleThreshold = parseFloat(
-    process.env.NEXT_PUBLIC_MIN_PURPLE_PERCENT || '0.10'
+    process.env.NEXT_PUBLIC_MIN_PURPLE_PERCENT || '0.05'
   );
 
   return purplePercentage < minPurpleThreshold;

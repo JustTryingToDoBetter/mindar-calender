@@ -23,9 +23,9 @@ export class PredictionStabilizer {
    * @param minMaskiCount - Minimum number of "Maski" predictions in window (default: 2)
    */
   constructor(
-    windowSize: number = 5,
-    threshold: number = parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.80'),
-    minMaskiCount: number = 2
+    windowSize: number = parseInt(process.env.NEXT_PUBLIC_STABILIZER_WINDOW || '7'),
+    threshold: number = parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.85'),
+    minMaskiCount: number = parseInt(process.env.NEXT_PUBLIC_MIN_MASKI_COUNT || '4')
   ) {
     this.windowSize = windowSize;
     this.threshold = threshold;

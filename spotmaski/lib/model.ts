@@ -71,7 +71,14 @@ export async function loadModel(): Promise<tf.LayersModel> {
  */
 export async function predictMaski(
   source: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
-): Promise<{ isMaski: boolean; confidence: number; class0: number; class1: number }> {
+): Promise<{
+  isMaski: boolean;
+  confidence: number;
+  class0: number;
+  class1: number;
+  notMaskiConfidence: number;
+  margin: number;
+}> {
   const model = await loadModel();
 
   // Which class index is Maski? Set via env var (default: 0)
@@ -102,7 +109,8 @@ export async function predictMaski(
     // Get Maski confidence based on which class is Maski
     const maskiConfidence = maskiClassIndex === 0 ? class0 : class1;
     const notMaskiConfidence = maskiClassIndex === 0 ? class1 : class0;
-    const isMaski = maskiConfidence > notMaskiConfidence;
+    const margin = maskiConfidence - notMaskiConfidence;
+    const isMaski = margin > 0;
 
     // Log inference result with BOTH classes for debugging
     console.log(JSON.stringify({
@@ -113,6 +121,8 @@ export async function predictMaski(
       maskiClassIndex,
       isMaski,
       maskiConfidence: parseFloat(maskiConfidence.toFixed(3)),
+      notMaskiConfidence: parseFloat(notMaskiConfidence.toFixed(3)),
+      margin: parseFloat(margin.toFixed(3)),
     }));
 
     return {
@@ -120,6 +130,8 @@ export async function predictMaski(
       confidence: maskiConfidence,
       class0,
       class1,
+      notMaskiConfidence,
+      margin,
     };
   });
 }
