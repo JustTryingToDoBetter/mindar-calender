@@ -9,7 +9,7 @@ node_modules/
 # next.js
 /.next/
 /out/
-
+/apps/web/.next/
 # production
 /build
 
@@ -24,6 +24,19 @@ yarn-error.log*
 
 # local env files
 .env*.local
+
+# python
+__pycache__/
+*.pyc
+.venv/
+ml/.venv/
+
+# ml artifacts
+ml/data/
+ml/exports/
+
+# tfjs export
+/apps/web/public/model/
 
 # vercel
 .vercel
