@@ -234,7 +234,7 @@ def main() -> None:
     history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs)
 
     val_preds = model.predict(val_ds, verbose=0).ravel()
-    val_labels = np.concatenate([y.numpy() for _, y, _ in val_ds.unbatch()]).astype(int)
+    val_labels = np.array([y.numpy() for _, y, _ in val_ds.unbatch()]).astype(int)
 
     pred_labels = (val_preds >= args.threshold).astype(int)
     tp = int(np.sum((pred_labels == 1) & (val_labels == 1)))
