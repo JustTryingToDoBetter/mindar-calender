@@ -176,7 +176,7 @@ def main() -> None:
     parser.add_argument("--hard_negative_weight", type=float, default=2.5)
     parser.add_argument("--val_split", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--export_dir", type=str, default="exports/maski_model")
+    parser.add_argument("--export_dir", type=str, default="exports/maski_model.keras")
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
@@ -250,6 +250,8 @@ def main() -> None:
     print(f"Lookalike FPR: {lookalike_fpr:.4f}")
 
     export_dir = Path(args.export_dir)
+    if export_dir.suffix not in {".keras", ".h5"}:
+        export_dir = export_dir.with_suffix(".keras")
     export_dir.parent.mkdir(parents=True, exist_ok=True)
     model.save(export_dir)
 
