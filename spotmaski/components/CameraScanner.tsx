@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { loadModel, predictMaski } from '@/lib/model';
 import { PredictionStabilizer } from '@/lib/stabilizer';
+import { analyzePurpleContent, shouldFilterByColor } from '@/lib/colorDetection';
 
 export type ScanStatus =
   | 'requesting-camera'
@@ -33,6 +34,15 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastConfidence, setLastConfidence] = useState<number>(0);
   const [isDetecting, setIsDetecting] = useState(false);
+
+  // Debug state - shows both class confidences
+  const [debugInfo, setDebugInfo] = useState<{
+    class0: number;
+    class1: number;
+    maskiClassIndex: number;
+    purplePercent: number;
+    hasPurple: boolean;
+  } | null>(null);
 
   // Inference FPS throttle
   const inferenceIntervalMs = 1000 / parseInt(process.env.NEXT_PUBLIC_INFERENCE_FPS || '8');
@@ -150,10 +160,55 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
       // Run inference
       const prediction = await predictMaski(canvas);
 
+      // Analyze purple content (Maski is purple!)
+      const colorAnalysis = analyzePurpleContent(canvas);
+
       setLastConfidence(prediction.confidence);
 
-      // Check stabilizer
-      if (stabilizerRef.current && prediction.isMaski) {
+      // Update debug info
+      setDebugInfo({
+        class0: prediction.class0,
+        class1: prediction.class1,
+        maskiClassIndex: parseInt(process.env.NEXT_PUBLIC_MASKI_CLASS_INDEX || '0'),
+        purplePercent: colorAnalysis.purplePercentage,
+        hasPurple: colorAnalysis.hasPurple,
+      });
+
+      // Filter out non-purple detections
+      const shouldFilter = shouldFilterByColor(colorAnalysis.purplePercentage);
+
+      // Debug mode: bypass stabilizer for immediate feedback
+      const debugMode = process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
+      const threshold = parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.80');
+
+      if (debugMode && prediction.isMaski && !shouldFilter && prediction.confidence >= threshold) {
+        // DEBUG MODE: Immediate detection without stabilizer
+        console.log(JSON.stringify({
+          event: 'debug_detection_triggered',
+          timestamp: new Date().toISOString(),
+          sessionId: sessionIdRef.current,
+          confidence: prediction.confidence,
+          class0: prediction.class0,
+          class1: prediction.class1,
+          purplePercent: colorAnalysis.purplePercentage,
+        }));
+
+        // Stop scanning
+        setIsDetecting(false);
+        setStatus('detected');
+
+        // Notify parent component
+        onDetection({
+          sessionId: sessionIdRef.current,
+          detectedAt: new Date().toISOString(),
+          avgConfidence: parseFloat(prediction.confidence.toFixed(3)),
+        });
+
+        return; // Stop the loop
+      }
+
+      // Normal mode: Check stabilizer (only if prediction is Maski AND has purple color)
+      if (!debugMode && stabilizerRef.current && prediction.isMaski && !shouldFilter) {
         const result = stabilizerRef.current.push(prediction.confidence);
 
         if (result.triggered) {
@@ -295,6 +350,67 @@ export default function CameraScanner({ onDetection }: CameraScannerProps) {
               <span className="status-badge status-warning">
                 {(lastConfidence * 100).toFixed(0)}%
               </span>
+            )}
+          </div>
+        )}
+
+        {/* Debug overlay - shows both class confidences */}
+        {status === 'scanning' && debugInfo && (
+          <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-90 rounded-lg p-4 text-white text-sm font-mono space-y-2 border-2 border-yellow-500">
+            {/* Debug mode indicator */}
+            {process.env.NEXT_PUBLIC_DEBUG_MODE === 'true' && (
+              <div className="bg-yellow-500 text-black px-2 py-1 rounded text-xs font-bold mb-2">
+                🐛 DEBUG MODE - No Stabilizer
+              </div>
+            )}
+
+            <div className="flex justify-between items-center">
+              <span className={debugInfo.maskiClassIndex === 0 ? 'text-green-400 font-bold text-base' : ''}>
+                Class 0: {(debugInfo.class0 * 100).toFixed(1)}%
+                {debugInfo.maskiClassIndex === 0 && ' ← MASKI'}
+              </span>
+              {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < 0.6 && (
+                <span className="text-red-400 text-xs">Too low!</span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className={debugInfo.maskiClassIndex === 1 ? 'text-green-400 font-bold text-base' : ''}>
+                Class 1: {(debugInfo.class1 * 100).toFixed(1)}%
+                {debugInfo.maskiClassIndex === 1 && ' ← MASKI'}
+              </span>
+              {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < 0.6 && (
+                <span className="text-red-400 text-xs">Too low!</span>
+              )}
+            </div>
+
+            <div className="border-t border-gray-600 pt-2">
+              <div className="flex justify-between items-center">
+                <span className={debugInfo.hasPurple ? 'text-purple-400 font-bold' : 'text-red-400'}>
+                  Purple: {(debugInfo.purplePercent * 100).toFixed(1)}%
+                  {debugInfo.hasPurple ? ' ✓' : ' ✗'}
+                </span>
+                {!debugInfo.hasPurple && (
+                  <span className="text-red-400 text-xs">Need 5%+</span>
+                )}
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-400 border-t border-gray-600 pt-2">
+              <div>Threshold: {(parseFloat(process.env.NEXT_PUBLIC_THRESHOLD || '0.8') * 100).toFixed(0)}%</div>
+              <div>Class {debugInfo.maskiClassIndex} = Maski</div>
+            </div>
+
+            {/* Suggestions */}
+            {debugInfo.maskiClassIndex === 0 && debugInfo.class0 < 0.6 && (
+              <div className="bg-red-900 bg-opacity-50 p-2 rounded text-xs mt-2">
+                ⚠️ Try: Set MASKI_CLASS_INDEX=1 in .env.local
+              </div>
+            )}
+            {debugInfo.maskiClassIndex === 1 && debugInfo.class1 < 0.6 && (
+              <div className="bg-red-900 bg-opacity-50 p-2 rounded text-xs mt-2">
+                ⚠️ Try: Set MASKI_CLASS_INDEX=0 in .env.local
+              </div>
             )}
           </div>
         )}

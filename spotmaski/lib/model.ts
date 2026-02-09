@@ -67,12 +67,16 @@ export async function loadModel(): Promise<tf.LayersModel> {
 /**
  * Run inference on an HTML canvas or video element
  * @param source - HTMLVideoElement, HTMLCanvasElement, or HTMLImageElement
- * @returns Prediction result { isMaski: boolean, confidence: number }
+ * @returns Prediction result { isMaski: boolean, confidence: number, class0: number, class1: number }
  */
 export async function predictMaski(
   source: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
-): Promise<{ isMaski: boolean; confidence: number }> {
+): Promise<{ isMaski: boolean; confidence: number; class0: number; class1: number }> {
   const model = await loadModel();
+
+  // Which class index is Maski? Set via env var (default: 0)
+  // If your model detects you as Maski when you're NOT Maski, change this to 1
+  const maskiClassIndex = parseInt(process.env.NEXT_PUBLIC_MASKI_CLASS_INDEX || '0');
 
   return tf.tidy(() => {
     // Convert source to tensor
@@ -90,25 +94,32 @@ export async function predictMaski(
     // Run inference
     const predictions = model.predict(tensor) as tf.Tensor;
 
-    // Get predictions as array [not_maski_confidence, maski_confidence]
+    // Get predictions as array [class_0_confidence, class_1_confidence]
     const data = predictions.dataSync();
+    const class0 = data[0];
+    const class1 = data[1];
 
-    // Assuming class 0 is "Not Maski" and class 1 is "Maski"
-    const maskiConfidence = data[1];
-    const isMaski = maskiConfidence > (data[0] || 0);
+    // Get Maski confidence based on which class is Maski
+    const maskiConfidence = maskiClassIndex === 0 ? class0 : class1;
+    const notMaskiConfidence = maskiClassIndex === 0 ? class1 : class0;
+    const isMaski = maskiConfidence > notMaskiConfidence;
 
-    // Log inference result (structured JSON for analytics)
+    // Log inference result with BOTH classes for debugging
     console.log(JSON.stringify({
       event: 'inference',
       timestamp: new Date().toISOString(),
+      class0_confidence: parseFloat(class0.toFixed(3)),
+      class1_confidence: parseFloat(class1.toFixed(3)),
+      maskiClassIndex,
       isMaski,
-      confidence: maskiConfidence,
-      predictions: Array.from(data),
+      maskiConfidence: parseFloat(maskiConfidence.toFixed(3)),
     }));
 
     return {
       isMaski,
       confidence: maskiConfidence,
+      class0,
+      class1,
     };
   });
 }
